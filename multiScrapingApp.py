@@ -135,6 +135,8 @@ def scrape():
     if not elements:
         messagebox.showerror("Error", "要素を選択してください")
         return
+    if selected_elements['ALL']:
+        elements = list(selected_elements.keys())[:-1]
 
     # スクレイピング実行処理
     try:
@@ -146,34 +148,41 @@ def scrape():
         progress_bar["maximum"] = total_elements
         progress_bar["value"] = 0
 
+        current_element = 0
+
         if "Images" in elements:
             images = soup.find_all("img")
             for img in images:
                 img_url = img.get("src")
                 if img_url:
-                    download_resource(url, img_url, folder, "Images")
-                    update_progress_bar()
+                    current_element += 1
+                    download_resource(url, img_url, folder, "Images",current_element,total_elements)
+                    time.sleep(1)
 
         if "HTML" in elements:
             html_content = response.content  # バイナリデータとして取得
             save_to_file(html_content, folder, "HTML")
-            update_progress_bar()
+            current_element += 1
+            update_progress_bar(current_element ,total_elements)
+            time.sleep(1)
 
         if "CSS" in elements:
             css_links = soup.find_all("link", {"rel": "stylesheet"})
             for css in css_links:
                 css_url = css.get("href")
                 if css_url:
-                    download_resource(url, css_url, folder, "CSS")
-                    update_progress_bar()
+                    current_element += 1
+                    download_resource(url, css_url, folder, "CSS",current_element,total_elements)
+                    time.sleep(1)
 
         if "JS" in elements:
             js_links = soup.find_all("script", {"src": True})
             for js in js_links:
                 js_url = js.get("src")
                 if js_url:
-                    download_resource(url, js_url, folder, "JS")
-                    update_progress_bar()
+                    current_element += 1
+                    download_resource(url, js_url, folder, "JS",current_element,total_elements)
+                    time.sleep(1)
 
         messagebox.showinfo("Success", "スクレイピングが完了しました")
 
@@ -181,13 +190,23 @@ def scrape():
         messagebox.showerror("Error", f"URLの読み込みに失敗しました: {e}")
 
 # リソースをダウンロードする関数
-def download_resource(base_url, resource_url, folder, resource_type):
-    resource_url = urljoin(base_url, resource_url)
-    resource_name = resource_url.split("/")[-1]
-    resource_path = os.path.join(folder, resource_name)
-    response = requests.get(resource_url)
-    with open(resource_path, "wb") as file:
-        file.write(response.content)
+def download_resource(base_url, resource_url, folder, resource_type,current_element,total_elements):
+    try:
+        resource_url = urljoin(base_url, resource_url)
+        resource_name = resource_url.split("/")[-1] or f'{resource_type.lower()}_resource'
+        resource_path = os.path.join(folder, resource_name)
+        response = requests.get(resource_url)
+        response.raise_for_status()
+        with open(resource_path, "wb") as file:
+            file.write(response.content)
+
+        update_progress_bar(current_element, total_elements)
+
+    except requests.exceptions.RequestException as e:
+        messagebox.showerror("Error", f"リソースのダウンロードに失敗しました: {e}")
+    except IOError as e:
+        messagebox.showerror("Error", f"ファイルの保存に失敗しました: {e}")
+
 
 # HTML/CSS/JSのデータをファイルに保存する関数
 def save_to_file(content, folder, file_type):
@@ -196,11 +215,10 @@ def save_to_file(content, folder, file_type):
         file.write(content)
 
 # 進捗バーの更新関数
-def update_progress_bar():
-    for i in range(100):
-        progress_bar["value"] += 1
+def update_progress_bar(current,total):
+        progress_bar["value"] = current
+        progress_bar["maximum"] = total
         root.update_idletasks()
-        time.sleep(0.01)
 
 # Scrapingボタンの配置
 scrape_button = tk.Button(root, text="Scraping!", font=("Arial", 14), command=scrape)
